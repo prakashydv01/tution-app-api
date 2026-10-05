@@ -1,0 +1,205 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  SEEKER
+  TUTOR
+  ADMIN
+}
+
+enum TeachingMode {
+  HOME
+  CENTER
+  ONLINE
+}
+
+enum FeeUnit {
+  HOUR
+  MONTH
+}
+
+enum InquiryStatus {
+  NEW
+  CONTACTED
+  CLOSED
+}
+
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  passwordHash    String
+  name            String
+  phone           String?
+  role            Role      @default(SEEKER)
+  emailVerifiedAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  tutorProfile       TutorProfile?
+  verificationCodes  EmailVerificationCode[]
+  passwordResetCodes PasswordResetCode[]
+  requirements       Requirement[]
+  inquiries          Inquiry[]
+  reviews            Review[]
+
+  @@index([role])
+}
+
+model LoginAttempt {
+  id         String   @id @default(cuid())
+  identifier String // the submitted email, even if no account matches it
+  ip         String
+  success    Boolean
+  createdAt  DateTime @default(now())
+
+  @@index([identifier, createdAt])
+  @@index([ip, createdAt])
+}
+
+model PasswordResetCode {
+  id        String    @id @default(cuid())
+  userId    String
+  codeHash  String
+  expiresAt DateTime
+  attempts  Int       @default(0)
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model EmailVerificationCode {
+  id        String    @id @default(cuid())
+  userId    String
+  codeHash  String
+  expiresAt DateTime
+  attempts  Int       @default(0)
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model City {
+  id         Int        @id @default(autoincrement())
+  name       String     @unique
+  localities Locality[]
+  tutors     TutorProfile[]
+}
+
+model Locality {
+  id           Int     @id @default(autoincrement())
+  name         String
+  cityId       Int
+
+  city         City    @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  tutors       TutorProfile[]
+  requirements Requirement[]
+
+  @@unique([cityId, name])
+  @@index([cityId])
+}
+
+model Subject {
+  id           Int            @id @default(autoincrement())
+  name         String         @unique
+  tutors       TutorProfile[]
+  requirements Requirement[]
+}
+
+model Level {
+  id           Int            @id @default(autoincrement())
+  name         String         @unique
+  sortOrder    Int            @default(0)
+  tutors       TutorProfile[]
+  requirements Requirement[]
+}
+
+model TutorProfile {
+  id              String         @id @default(cuid())
+  userId          String         @unique
+  headline        String
+  bio             String
+  experienceYears Int            @default(0)
+  feeMin          Int?
+  feeMax          Int?
+  feeUnit         FeeUnit        @default(MONTH)
+  modes           TeachingMode[]
+  contactPhone    String
+  cityId          Int
+  localityId      Int
+  isVerified      Boolean        @default(false)
+  isActive        Boolean        @default(true)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  city       City      @relation(fields: [cityId], references: [id])
+  locality   Locality  @relation(fields: [localityId], references: [id])
+  subjects   Subject[]
+  levels     Level[]
+  inquiries  Inquiry[]
+  reviews    Review[]
+
+  @@index([cityId, localityId, isVerified, isActive])
+  @@index([isVerified])
+}
+
+model Requirement {
+  id          String   @id @default(cuid())
+  userId      String
+  localityId  Int
+  subjectId   Int
+  levelId     Int
+  budgetMin   Int?
+  budgetMax   Int?
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  locality Locality @relation(fields: [localityId], references: [id])
+  subject  Subject  @relation(fields: [subjectId], references: [id])
+  level    Level    @relation(fields: [levelId], references: [id])
+
+  @@index([localityId, subjectId, isActive])
+}
+
+model Inquiry {
+  id             String        @id @default(cuid())
+  tutorProfileId String
+  fromUserId     String
+  message        String
+  status         InquiryStatus @default(NEW)
+  createdAt      DateTime      @default(now())
+
+  tutorProfile TutorProfile @relation(fields: [tutorProfileId], references: [id], onDelete: Cascade)
+  fromUser     User         @relation(fields: [fromUserId], references: [id], onDelete: Cascade)
+
+  @@index([tutorProfileId, status])
+  @@index([fromUserId])
+}
+
+model Review {
+  id             String   @id @default(cuid())
+  tutorProfileId String
+  authorId       String
+  rating         Int
+  comment        String?
+  createdAt      DateTime @default(now())
+
+  tutorProfile TutorProfile @relation(fields: [tutorProfileId], references: [id], onDelete: Cascade)
+  author       User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@unique([tutorProfileId, authorId])
+}
