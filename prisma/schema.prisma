@@ -37,6 +37,7 @@ model User {
   name            String
   phone           String?
   role            Role      @default(SEEKER)
+  expoPushToken   String?
   emailVerifiedAt DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -47,13 +48,29 @@ model User {
   requirements       Requirement[]
   inquiries          Inquiry[]
   reviews            Review[]
+  notifications      Notification[]
 
   @@index([role])
 }
 
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String // e.g. "inquiry_received", "inquiry_contacted", "new_review", "tutor_verified"
+  title     String
+  body      String
+  data      Json?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead, createdAt])
+}
+
 model LoginAttempt {
   id         String   @id @default(cuid())
-  identifier String // the submitted email, even if no account matches it
+  identifier String
   ip         String
   success    Boolean
   createdAt  DateTime @default(now())
@@ -98,9 +115,9 @@ model City {
 }
 
 model Locality {
-  id           Int     @id @default(autoincrement())
-  name         String
-  cityId       Int
+  id     Int    @id @default(autoincrement())
+  name   String
+  cityId Int
 
   city         City    @relation(fields: [cityId], references: [id], onDelete: Cascade)
   tutors       TutorProfile[]

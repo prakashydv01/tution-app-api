@@ -2,21 +2,20 @@ import { z } from "zod";
 import { ApiError, created, handler, parseBody } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
+import { notifyUser } from "@/lib/notify";
 
 const bodySchema = z.object({
   tutorProfileId: z.string().min(1),
   message: z.string().trim().min(10).max(1000),
 });
 
-// Any signed-in, verified user can reach out to a tutor — students and parents share
-// this one role (SEEKER) since they both do the same thing: look for a tutor.
 export const POST = handler(async (req) => {
   const user = await requireUser(req);
   const { tutorProfileId, message } = await parseBody(req, bodySchema);
 
   const tutor = await prisma.tutorProfile.findFirst({
     where: { id: tutorProfileId, isVerified: true, isActive: true },
-    select: { id: true, userId: true },
+    select: { id: true, userId: true, user: { select: { expoPushToken: true } } },
   });
   if (!tutor) throw new ApiError(404, "NOT_FOUND", "Tutor not found");
   if (tutor.userId === user.id) {
@@ -26,6 +25,15 @@ export const POST = handler(async (req) => {
   const inquiry = await prisma.inquiry.create({
     data: { tutorProfileId, fromUserId: user.id, message },
     select: { id: true, status: true, message: true, createdAt: true },
+  });
+
+  await notifyUser({
+    userId: tutor.userId,
+    expoPushToken: tutor.user.expoPushToken,
+    type: "inquiry_received",
+    title: "New inquiry",
+    body: `${user.name} is interested in your tutoring: "${message.slice(0, 80)}"`,
+    data: { inquiryId: inquiry.id },
   });
 
   return created({ data: inquiry });
