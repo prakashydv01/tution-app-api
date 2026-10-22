@@ -2,7 +2,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "./prisma";
 import { sendPushNotification } from "./push";
 
-type NotificationType = "inquiry_received" | "inquiry_contacted" | "new_review" | "tutor_verified";
+type NotificationType = "inquiry_received" | "inquiry_contacted" | "new_review" | "tutor_verified" | "tutor_applied";
 
 interface NotifyUserOptions {
   userId: string;
