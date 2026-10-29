@@ -49,23 +49,35 @@ model User {
   inquiries          Inquiry[]
   reviews            Review[]
   notifications      Notification[]
+  sessions           Session[]
 
   @@index([role])
 }
 
-model Notification {
-  id        String   @id @default(cuid())
+// Lets a specific login be revoked server-side (logout, lost device) instead of
+// only relying on the JWT's own 7-day expiry. The JWT carries this row's id as
+// "sid"; every authenticated request checks the row still exists and isn't revoked.
+model Session {
+  id        String    @id @default(cuid())
   userId    String
-  type      String // e.g. "inquiry_received", "inquiry_contacted", "new_review", "tutor_verified"
-  title     String
-  body      String
-  data      Json?
-  isRead    Boolean  @default(false)
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId, isRead, createdAt])
+  @@index([userId])
+}
+
+// Generic sliding-window rate limiter shared by any endpoint that needs one
+// (registration, inquiries, reviews, requirements, ...). Login has its own
+// dedicated LoginAttempt table below since it predates this and tracks more detail.
+model RateLimitHit {
+  id        String   @id @default(cuid())
+  key       String
+  createdAt DateTime @default(now())
+
+  @@index([key, createdAt])
 }
 
 model LoginAttempt {
@@ -105,6 +117,21 @@ model EmailVerificationCode {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  title     String
+  body      String
+  data      Json?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead, createdAt])
 }
 
 model City {
